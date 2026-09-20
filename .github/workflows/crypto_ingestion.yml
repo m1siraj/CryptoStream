@@ -29,4 +29,4 @@ jobs:
 
       - name: Start crypto collector
         run: |
-          python collector/crypto_collector.py
+          python -u collector/crypto_collector.py
