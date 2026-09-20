@@ -11,13 +11,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Show collector source
-        run: |
-          echo "===== COLLECTOR SOURCE ====="
-          sed -n '1,120p' collector/crypto_collector.py
-          echo "===== GIT COMMIT ====="
-          git log -1 --oneline
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -29,12 +22,52 @@ jobs:
 
       - name: Start crypto collector
         run: |
-          timeout 60 python -u collector/crypto_collector.py
-      
-      - name: Inspect collected files
+          timeout 60 python -u collector/crypto_collector.py || true
+
+      - name: Show collected files
         run: |
           echo "===== FILES ====="
           ls -lh *.ndjson
 
-          echo "===== FIRST 5 TRADES ====="
-          head -n 5 *.ndjson
+      - name: Upload test file to Databricks
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          python - <<'PY'
+          import glob
+          import os
+
+          from databricks.sdk import WorkspaceClient
+
+          files = glob.glob("*.ndjson")
+
+          print(f"Found {len(files)} NDJSON files.")
+
+          if not files:
+              raise RuntimeError("No NDJSON files found.")
+
+          w = WorkspaceClient(
+              host=os.environ["DATABRICKS_HOST"],
+              token=os.environ["DATABRICKS_TOKEN"]
+          )
+
+          source_file = files[0]
+
+          target_path = (
+              "/Volumes/workspace/default/crypto_raw/"
+              + os.path.basename(source_file)
+          )
+
+          print(f"Uploading {source_file}")
+          print(f"Target: {target_path}")
+
+          with open(source_file, "rb") as f:
+              w.files.upload(
+                  target_path,
+                  f,
+                  overwrite=True
+              )
+
+          print("Upload successful.")
+          PY
