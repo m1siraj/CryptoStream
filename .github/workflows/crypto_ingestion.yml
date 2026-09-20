@@ -1,0 +1,25 @@
+name: CryptoStream Ingestion
+
+on:
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r collector/requirements.txt
+
+      - name: Start crypto collector
+        run: |
+          python collector/crypto_collector.py
