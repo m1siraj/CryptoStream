@@ -1,25 +1,34 @@
 import json
-import os
 import time
-from datetime import datetime, timezone
 
 import websocket
 
 
-BINANCE_WS_URL = (
-    "wss://stream.binance.com:9443/ws/btcusdt@aggTrade"
+COINBASE_WS_URL = (
+    "wss://advanced-trade-ws.coinbase.com"
 )
+
+
+def on_open(ws):
+    print("Connected to Coinbase WebSocket.")
+
+    subscribe_message = {
+        "type": "subscribe",
+        "product_ids": [
+            "BTC-USD"
+        ],
+        "channel": "market_trades"
+    }
+
+    ws.send(json.dumps(subscribe_message))
+
+    print("Subscribed to BTC-USD market trades.")
 
 
 def on_message(ws, message):
     event = json.loads(message)
 
-    print(
-        f"BTCUSDT | "
-        f"price={event['p']} | "
-        f"quantity={event['q']} | "
-        f"trade_id={event['a']}"
-    )
+    print(json.dumps(event))
 
 
 def on_error(ws, error):
@@ -34,16 +43,11 @@ def on_close(ws, close_status_code, close_msg):
     )
 
 
-def on_open(ws):
-    print("Connected to Binance WebSocket.")
-    print("Listening for BTCUSDT aggregate trades...")
-
-
 while True:
 
     try:
         ws = websocket.WebSocketApp(
-            BINANCE_WS_URL,
+            COINBASE_WS_URL,
             on_open=on_open,
             on_message=on_message,
             on_error=on_error,
