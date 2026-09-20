@@ -29,4 +29,12 @@ jobs:
 
       - name: Start crypto collector
         run: |
-          python -u collector/crypto_collector.py
+          timeout 60 python -u collector/crypto_collector.py
+      
+      - name: Inspect collected files
+        run: |
+          echo "===== FILES ====="
+          ls -lh *.ndjson
+
+          echo "===== FIRST 5 TRADES ====="
+          head -n 5 *.ndjson
