@@ -11,6 +11,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Show collector source
+        run: |
+          echo "===== COLLECTOR SOURCE ====="
+          sed -n '1,120p' collector/crypto_collector.py
+          echo "===== GIT COMMIT ====="
+          git log -1 --oneline
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
