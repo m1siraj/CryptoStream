@@ -144,4 +144,46 @@ jobs:
                   break
 
               time.sleep(10)
+              
+      - name: Verify Databricks token
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          python <<'PY'
+          import os
+          import requests
+
+          host = os.environ["DATABRICKS_HOST"]
+          token = os.environ["DATABRICKS_TOKEN"]
+
+          response = requests.get(
+              f"{host}/api/2.0/token/list",
+              headers={
+                  "Authorization": f"Bearer {token}"
+              },
+              timeout=30,
+          )
+
+          print("HTTP status:", response.status_code)
+
+          if response.status_code != 200:
+              print(response.text)
+              raise SystemExit(1)
+
+          data = response.json()
+
+          print("Tokens visible to this credential:")
+
+          for token_info in data.get("token_infos", []):
+              print(
+                  "comment=",
+                  token_info.get("comment"),
+                  "| scopes=",
+                  token_info.get("scopes"),
+                  "| token_id=",
+                  token_info.get("token_id"),
+              )
           PY
+
+      
