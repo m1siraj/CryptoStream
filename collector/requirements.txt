@@ -1,2 +1,5 @@
-websocket-client
 databricks-sdk
+databricks-sql-connector
+streamlit
+pandas
+plotly
