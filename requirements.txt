@@ -1,0 +1,7 @@
+```text
+streamlit
+databricks-sdk
+databricks-sql-connector
+pandas
+plotly
+```
