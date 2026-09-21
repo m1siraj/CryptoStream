@@ -1,17 +1,15 @@
-command: ['streamlit', 'run', 'app.py']
-
 env:
   - name: DATABRICKS_WAREHOUSE_ID
     valueFrom: sql-warehouse
 
   - name: LATEST_TABLE
-    valueFrom: workspace.default.crypto_dashboard_latest
+    valueFrom: latest-table
 
   - name: TRADES_TABLE
-    valueFrom: workspace.default.crypto_dashboard_trades
+    valueFrom: trades-table
 
   - name: GOLD_1M_TABLE
-    valueFrom: workspace.default.crypto_gold_1m
+    valueFrom: gold-1m
 
   - name: STREAMLIT_GATHER_USAGE_STATS
     value: 'false'
