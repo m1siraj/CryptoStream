@@ -3,11 +3,17 @@ name: CryptoStream Ingestion
 on:
   workflow_dispatch:
 
+  schedule:
+    - cron: "*/2 * * * *"
+
 jobs:
   ingest:
     runs-on: ubuntu-latest
 
+    timeout-minutes: 5
+
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -18,56 +24,124 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r collector/requirements.txt
+          pip install websocket-client databricks-sdk
 
-      - name: Start crypto collector
+      - name: Collect Coinbase trades
         run: |
           timeout 60 python -u collector/crypto_collector.py || true
 
-      - name: Show collected files
+      - name: List collected files
         run: |
-          echo "===== FILES ====="
-          ls -lh *.ndjson
+          echo "Collected NDJSON files:"
+          ls -lh *.ndjson || true
 
-      - name: Upload test file to Databricks
+      - name: Upload all NDJSON files to Databricks
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
-          python - <<'PY'
-          import glob
+          python <<'PY'
           import os
-
+          import glob
           from databricks.sdk import WorkspaceClient
 
-          files = glob.glob("*.ndjson")
+          host = os.environ["DATABRICKS_HOST"]
+          token = os.environ["DATABRICKS_TOKEN"]
+
+          w = WorkspaceClient(
+              host=host,
+              token=token
+          )
+
+          files = sorted(glob.glob("*.ndjson"))
 
           print(f"Found {len(files)} NDJSON files.")
 
           if not files:
-              raise RuntimeError("No NDJSON files found.")
+              raise RuntimeError("No NDJSON files were produced.")
+
+          for filename in files:
+              target = (
+                  "/Volumes/workspace/default/"
+                  f"crypto_raw/{os.path.basename(filename)}"
+              )
+
+              print(f"Uploading: {filename}")
+              print(f"Target:    {target}")
+
+              with open(filename, "rb") as f:
+                  w.files.upload(
+                      target,
+                      f,
+                      overwrite=True
+                  )
+
+              print("Upload successful.")
+
+          print("All NDJSON files uploaded successfully.")
+          PY
+
+      - name: Trigger Databricks Pipeline
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          python <<'PY'
+          import os
+          import time
+          from databricks.sdk import WorkspaceClient
 
           w = WorkspaceClient(
               host=os.environ["DATABRICKS_HOST"],
               token=os.environ["DATABRICKS_TOKEN"]
           )
 
-          source_file = files[0]
-
-          target_path = (
-              "/Volumes/workspace/default/crypto_raw/"
-              + os.path.basename(source_file)
+          jobs = list(
+              w.jobs.list(
+                  name="CryptoStream Pipeline"
+              )
           )
 
-          print(f"Uploading {source_file}")
-          print(f"Target: {target_path}")
-
-          with open(source_file, "rb") as f:
-              w.files.upload(
-                  target_path,
-                  f,
-                  overwrite=True
+          if not jobs:
+              raise RuntimeError(
+                  "CryptoStream Pipeline job was not found."
               )
 
-          print("Upload successful.")
+          job = jobs[0]
+
+          print(f"Found Databricks Job ID: {job.job_id}")
+
+          run = w.jobs.run_now(
+              job_id=job.job_id
+          )
+
+          print(f"Started Databricks run: {run.run_id}")
+
+          while True:
+              current = w.jobs.get_run(run_id=run.run_id)
+
+              life_cycle = current.state.life_cycle_state
+              result_state = current.state.result_state
+
+              print(
+                  f"Job state: "
+                  f"life_cycle={life_cycle}, "
+                  f"result={result_state}"
+              )
+
+              if life_cycle in [
+                  "TERMINATED",
+                  "SKIPPED",
+                  "INTERNAL_ERROR"
+              ]:
+                  if result_state != "SUCCESS":
+                      raise RuntimeError(
+                          f"Databricks job failed: "
+                          f"{result_state}"
+                      )
+
+                  print("Databricks pipeline completed successfully.")
+                  break
+
+              time.sleep(10)
           PY
